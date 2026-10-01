@@ -6,7 +6,6 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
-import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ModuleRootEvent
@@ -31,8 +30,9 @@ import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
 import java.awt.CardLayout
 import java.awt.FlowLayout
-import java.awt.datatransfer.StringSelection
 import java.awt.event.ActionEvent
+import java.awt.event.FocusAdapter
+import java.awt.event.FocusEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.io.IOException
@@ -46,9 +46,7 @@ import javax.swing.JComboBox
 import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JList
-import javax.swing.JMenuItem
 import javax.swing.JPanel
-import javax.swing.JPopupMenu
 import javax.swing.KeyStroke
 import javax.swing.ListSelectionModel
 import javax.swing.SwingUtilities
@@ -153,16 +151,10 @@ private class ResourcePanel(private val project: Project) : JPanel(BorderLayout(
         detail.add(versionScroll, BorderLayout.CENTER)
         body.add(detail, "versions")
         versions.addListSelectionListener { updateActions() }
-        versions.componentPopupMenu = JPopupMenu().apply {
-            add(JMenuItem("Open source").apply { addActionListener { versions.selectedValue?.let { openSource(resource = it) } } })
-            add(
-                JMenuItem("Copy path").apply {
-                    addActionListener {
-                        versions.selectedValue?.let { CopyPasteManager.getInstance().setContents(StringSelection(it.file.toString())) }
-                    }
-                }
-            )
-        }
+        installResourcePopup(project = project, list = groups, resources = { it.versions }, refresh = ::refresh, openSource = ::openSource, isResourceRow = { index, point ->
+            groupHeading(index = index, root = groupModel[index].root) == null || point.y >= groups.getCellBounds(index, index).y + JBUI.scale(40)
+        })
+        installResourcePopup(project = project, list = versions, resources = { listOf(it) }, refresh = ::refresh, openSource = ::openSource)
 
         listOf("drawable", "string", "string-array", "plurals", "font", "files").forEach { type ->
             tabs.addTab(TabInfo(JPanel(BorderLayout())).setText(resourceTypeLabel(type = type)).setObject(type))
@@ -183,24 +175,18 @@ private class ResourcePanel(private val project: Project) : JPanel(BorderLayout(
         status.foreground = JBColor.GRAY
         add(status, BorderLayout.SOUTH)
 
-        groups.addMouseListener(object : MouseAdapter() {
-            override fun mouseClicked(event: MouseEvent) {
-                val index = groups.locationToIndex(event.point)
-                if (!SwingUtilities.isLeftMouseButton(event) || event.clickCount != 1 || index < 0) return
-                val bounds = groups.getCellBounds(index, index)
-                if (!bounds.contains(event.point)) return
-                if (groupHeading(index = index, root = groupModel[index].root) != null && event.y < bounds.y + JBUI.scale(40)) return
-                showVersions(group = groupModel[index])
-            }
-        })
+        installResourceActivation(
+            list = groups,
+            isResourceRow = { index, event ->
+                groupHeading(index = index, root = groupModel[index].root) == null ||
+                    event.y >= groups.getCellBounds(index, index).y + JBUI.scale(40)
+            },
+            activate = { showVersions(group = it) }
+        )
         versions.addMouseListener(object : MouseAdapter() {
-            override fun mousePressed(event: MouseEvent) = selectPopupTarget(event = event)
-
-            override fun mouseReleased(event: MouseEvent) = selectPopupTarget(event = event)
-
             override fun mouseClicked(event: MouseEvent) {
                 val index = versions.locationToIndex(event.point)
-                if (SwingUtilities.isLeftMouseButton(event) && event.clickCount == 2 && index >= 0 && versions.getCellBounds(index, index).contains(event.point)) openSelected()
+                if (SwingUtilities.isLeftMouseButton(event) && !event.isControlDown && !event.isPopupTrigger && event.clickCount == 2 && index >= 0 && versions.getCellBounds(index, index).contains(event.point)) openSelected()
             }
         })
         groups.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke("ENTER"), "versions")
@@ -390,16 +376,6 @@ private class ResourcePanel(private val project: Project) : JPanel(BorderLayout(
         return fallback
     }
 
-    private fun selectPopupTarget(event: MouseEvent) {
-        if (!event.isPopupTrigger) return
-        val index = versions.locationToIndex(event.point)
-        if (index >= 0 && versions.getCellBounds(index, index).contains(event.point)) {
-            versions.selectedIndex = index
-        } else {
-            versions.clearSelection()
-        }
-    }
-
     private fun openSelected() {
         val selected = versions.selectedValue ?: return
         if (selected.animated) {
@@ -446,4 +422,34 @@ private fun iconButton(icon: Icon, label: String): JButton = JButton(icon).apply
     preferredSize = JBUI.size(28, 28)
     isContentAreaFilled = false
     isBorderPainted = false
+}
+
+// Swing selects the row on mousePressed, before our mouseClicked listener runs.
+fun <T> installResourceActivation(list: JList<T>, isResourceRow: (Int, MouseEvent) -> Boolean, activate: (T) -> Unit) {
+    var armed: T? = null
+    list.addListSelectionListener { armed = null }
+    list.addFocusListener(object : FocusAdapter() {
+        override fun focusLost(event: FocusEvent) {
+            armed = null
+        }
+    })
+    list.addMouseListener(object : MouseAdapter() {
+        override fun mouseClicked(event: MouseEvent) {
+            if (!SwingUtilities.isLeftMouseButton(event) || event.isControlDown || event.isPopupTrigger) return
+            val index = resourcePopupIndex(list, event.point)
+            if (index < 0 || !isResourceRow(index, event)) {
+                armed = null
+                return
+            }
+            val resource = list.model.getElementAt(index)
+            list.selectedIndex = index
+            list.requestFocusInWindow()
+            if (armed == resource) {
+                armed = null
+                activate(resource)
+            } else {
+                armed = resource
+            }
+        }
+    })
 }

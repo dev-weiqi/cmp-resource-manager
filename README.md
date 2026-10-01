@@ -15,6 +15,7 @@ CMP Resource Manager adds resource browsing and previews for paths such as `shar
 - Preview images and Vector Drawable XML with transparency and original dimensions.
 - Play and pause animated WebP without JCEF.
 - Search resources and open their source files.
+- Right-click files for native IDE actions, including Move, Copy, Rename, Safe Delete, Find Usages, Select In, and Reveal in Finder/Explorer.
 - Automatically refresh when the IDE detects saved changes.
 
 ## Install

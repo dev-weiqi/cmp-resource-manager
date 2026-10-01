@@ -39,6 +39,9 @@ fun main(args: Array<String>) {
     checkAnimation()
     checkPreviewBounds()
     checkVectorPreviews()
+    checkPopupTargets()
+    checkResourceActivation()
+    checkPopupReadAccess()
     checkValueResources()
     checkResourceChanges()
     val fixture = Files.createTempDirectory("cmp-resources-check")
@@ -86,6 +89,26 @@ fun main(args: Array<String>) {
     } finally {
         Files.walk(fixture).use { paths -> paths.sorted(Comparator.reverseOrder()).forEach(Files::delete) }
     }
+}
+
+private fun checkPopupTargets() {
+    SwingUtilities.invokeAndWait {
+        val list = JList(arrayOf("first", "second", "third"))
+        list.fixedCellWidth = 100
+        list.fixedCellHeight = 50
+        list.setSize(300, 250)
+        list.selectedIndex = 0
+        check(resourcePopupIndex(list = list, point = java.awt.Point(20, 75)) == 1) { "Right-click must target the clicked resource, not the previous selection" }
+        check(resourcePopupIndex(list = list, point = java.awt.Point(20, 200)) == -1) { "Empty space must not target the nearest resource" }
+        list.layoutOrientation = JList.HORIZONTAL_WRAP
+        list.visibleRowCount = -1
+        list.setSize(200, 200)
+        check(resourcePopupIndex(list = list, point = java.awt.Point(120, 20)) == 1)
+        check(resourcePopupIndex(list = list, point = java.awt.Point(120, 75)) == -1) { "An empty grid cell must not target another variant" }
+        val empty = JList<String>()
+        check(resourcePopupIndex(list = empty, point = java.awt.Point(0, 0)) == -1)
+    }
+    println("Resource popup targets: clicked rows, variant grid, empty space and empty lists: OK")
 }
 
 private fun checkVectorPreviews() {
@@ -462,4 +485,82 @@ private fun checkPreviewBounds() {
         }
     }
     println("Landscape and portrait previews fit the viewport without cropping: OK")
+}
+
+private fun checkPopupReadAccess() {
+    val lifetime = Disposer.newDisposable()
+    var reading = false
+    val environment = object : CoreApplicationEnvironment(lifetime) {
+        override fun createApplication(parentDisposable: com.intellij.openapi.Disposable): com.intellij.mock.MockApplication =
+            object : com.intellij.mock.MockApplication(parentDisposable) {
+                override fun <T, E : Throwable?> runReadAction(computation: com.intellij.openapi.util.ThrowableComputable<T?, E?>): T? {
+                    reading = true
+                    return try {
+                        computation.compute()
+                    } finally {
+                        reading = false
+                    }
+                }
+            }
+    }
+    val project = object : com.intellij.mock.MockProject(environment.application.picoContainer, lifetime) {
+        override fun <T : Any?> getService(serviceClass: Class<T>): T? {
+            if (serviceClass == com.intellij.psi.PsiManager::class.java) {
+                check(reading) { "Popup PSI lookup requires a read action, including on the EDT" }
+            }
+            return super.getService(serviceClass)
+        }
+    }
+    project.registerService(com.intellij.psi.PsiManager::class.java, com.intellij.mock.MockPsiManager(project))
+    try {
+        SwingUtilities.invokeAndWait {
+            listOf("icon.png", "vector.xml", "font.ttf", "data.json", "strings.xml").forEach { name ->
+                resourcePopupPsi(project, LightVirtualFile(name))
+            }
+        }
+        println("Popup PSI lookup acquires read access from the EDT for every resource type: OK")
+    } finally {
+        Disposer.dispose(lifetime)
+    }
+}
+
+private fun checkResourceActivation() {
+    SwingUtilities.invokeAndWait {
+        val list = JList(arrayOf("first", "second"))
+        list.fixedCellHeight = 50
+        list.setSize(200, 150)
+        val opened = mutableListOf<String>()
+        installResourceActivation(list, isResourceRow = { _, event -> event.y >= 10 }, activate = opened::add)
+
+        fun click(index: Int, count: Int = 1, button: Int = java.awt.event.MouseEvent.BUTTON1, y: Int = index * 50 + 25) {
+            // Replay Swing's selection-before-click ordering.
+            list.selectedIndex = index
+            val event = java.awt.event.MouseEvent(list, java.awt.event.MouseEvent.MOUSE_CLICKED, 0, 0, 20, y, count, false, button)
+            list.mouseListeners.forEach { it.mouseClicked(event) }
+        }
+        click(0)
+        check(list.selectedIndex == 0 && opened.isEmpty())
+        click(1)
+        check(opened.isEmpty()) { "Changing rows must only select" }
+        click(1)
+        check(opened == listOf("second")) { "A second, separate click must open the selected row" }
+        opened.clear()
+        click(0)
+        click(0, count = 2)
+        check(opened == listOf("first")) { "A double click must also open exactly once" }
+        opened.clear()
+        click(0)
+        list.focusListeners.forEach { it.focusLost(java.awt.event.FocusEvent(list, java.awt.event.FocusEvent.FOCUS_LOST)) }
+        click(0)
+        check(opened.isEmpty()) { "Returning focus must not immediately open a resource" }
+        click(1, button = java.awt.event.MouseEvent.BUTTON3)
+        check(opened.isEmpty())
+        click(0, y = 5)
+        click(0)
+        check(opened.isEmpty()) { "Heading clicks must not arm navigation" }
+        click(0, y = 125)
+        click(0)
+        check(opened.isEmpty()) { "Empty space must not arm navigation" }
+    }
+    println("Resource activation: select first, click again, switch rows, double click, focus, headings and empty space: OK")
 }

@@ -19,8 +19,9 @@
         | <a href="https://github.com/dev-weiqi/cmp-resource-manager/issues">Report an issue</a></p>
     ]]></description>
     <change-notes><![CDATA[
-        <p>1.0.0</p>
+        <p>1.1.1</p>
         <ul>
+            <li>Add native IDE file actions to resource and variant context menus, with explicit version selection for grouped resources.</li>
             <li>Render Vector Drawable XML thumbnails in the resource list and variant cards.</li>
             <li>Open vector previews with transparency, preserved aspect ratio, original dimensions, and source navigation.</li>
             <li>Native resource list and variant comparison across six categories.</li>

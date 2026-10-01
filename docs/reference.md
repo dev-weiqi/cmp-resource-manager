@@ -1,5 +1,13 @@
 # Preview behavior and development
 
+## Context menus
+
+Right-click a resource or variant, or press Shift+F10 on a selection, to open its context menu. File resources use native IDE actions for Move, Copy, Rename, Safe Delete, Find Usages, Select In, and Reveal in Finder/Explorer. Refresh Preview, Copy Value, Copy Path, and Open Source are also available. Copy Value copies the resource name, or the displayed text for a values XML entry.
+
+A resource with multiple variants first asks which version to operate on. Actions target that file only. Values XML entries omit file refactorings and Find Usages because several entries share one XML file; open the source to edit individual entries. Native action availability depends on IDE indexing and installed handlers. Find Usages does not guarantee discovery of generated CMP `Res` references.
+
+## Resource previews
+
 The browser has two levels. The resource list groups entries by source root and combines versions of the same resource into one row, showing a thumbnail, name, type, and version count. Click a resource or press Enter to compare its density and locale variants as cards, with thumbnails, qualifiers, filenames, and sizes. Use the back arrow or Alt+Left to return to the list.
 
 Use the source selector, search field, and Drawable, String, String Array, Plurals, Font, and Files tabs to find resources. In the version view, double-click a version, press Enter, or click Preview to open it in the IDE. The context menu lets you copy its path. Resource subdirectories are supported, and resources with the same name in different source roots remain separate.
