@@ -1,0 +1,41 @@
+<idea-plugin url="https://github.com/dev-weiqi/cmp-resource-manager">
+    <id>io.github.devweiqi.cmp-resource-manager</id>
+    <name>CMP Resource Manager</name>
+    <vendor email="dev.weiqi@gmail.com" url="https://github.com/dev-weiqi">dev-weiqi</vendor>
+    <description><![CDATA[
+        <p>Browse Compose Multiplatform resources in Android Studio through a native tool window.</p>
+        <ul>
+            <li>Discover composeResources directories across modules and source sets.</li>
+            <li>Browse Drawable, String, String Array, Plurals, Font, and Files categories.</li>
+            <li>Group resources by name and compare density and locale variants.</li>
+            <li>Preview Vector Drawable XML as thumbnails and scalable images with original dimensions.</li>
+            <li>Search names and text, compare translations, and open XML declarations at their source lines.</li>
+            <li>Preview animated WebP with play/pause, transparency, and original dimensions, without JCEF.</li>
+            <li>Automatically refresh saved changes detected by the IDE while preserving filters and selection.</li>
+        </ul>
+        <p>Open View &gt; Tool Windows &gt; CMP Resource Manager after installation.
+        Requires IntelliJ Platform build 261 or later and the Android plugin. Tested with Android Studio 2026.1.4.</p>
+        <p><a href="https://github.com/dev-weiqi/cmp-resource-manager">Source and documentation</a>
+        | <a href="https://github.com/dev-weiqi/cmp-resource-manager/issues">Report an issue</a></p>
+    ]]></description>
+    <change-notes><![CDATA[
+        <p>1.0.0</p>
+        <ul>
+            <li>Render Vector Drawable XML thumbnails in the resource list and variant cards.</li>
+            <li>Open vector previews with transparency, preserved aspect ratio, original dimensions, and source navigation.</li>
+            <li>Native resource list and variant comparison across six categories.</li>
+            <li>Localized XML value previews and navigation to source declarations.</li>
+            <li>Animated WebP playback with transparent compositing and responsive previews.</li>
+            <li>Automatic resource refresh with preserved filters and selection.</li>
+        </ul>
+    ]]></change-notes>
+    <depends>com.intellij.modules.platform</depends>
+    <depends>intellij.webp</depends>
+    <depends>com.intellij.platform.images</depends>
+    <depends>org.jetbrains.android</depends>
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="CMP Resource Manager" anchor="left"
+                    icon="/icons/cmpResources.svg"
+                    factoryClass="io.github.devweiqi.cmpresources.ResourceToolWindowFactory"/>
+    </extensions>
+</idea-plugin>

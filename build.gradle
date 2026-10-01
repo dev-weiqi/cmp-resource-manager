@@ -1,0 +1,64 @@
+plugins {
+    id 'org.jetbrains.kotlin.jvm' version '2.3.21'
+    id 'org.jetbrains.intellij.platform' version '2.19.0'
+    id 'org.jlleitschuh.gradle.ktlint' version '14.2.0'
+}
+
+group = 'io.github.devweiqi'
+version = '1.0.0'
+
+repositories {
+    mavenCentral()
+    intellijPlatform { defaultRepositories() }
+}
+
+dependencies {
+    intellijPlatform {
+        local(providers.gradleProperty('studioPath').orElse('/Applications/Android Studio.app'))
+        bundledPlugin('intellij.webp')
+        bundledPlugin('com.intellij.platform.images')
+        bundledPlugin('org.jetbrains.android')
+    }
+}
+
+kotlin {
+    jvmToolchain(21)
+}
+
+intellijPlatform {
+    pluginVerification {
+        ides {
+            local(file(providers.gradleProperty('studioPath').orElse('/Applications/Android Studio.app').get()))
+        }
+    }
+    pluginConfiguration {
+        ideaVersion {
+            sinceBuild = '261'
+        }
+    }
+}
+
+sourceSets {
+    smoke {
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+    }
+}
+
+tasks.register('smokeCheck', JavaExec) {
+    dependsOn smokeClasses
+    classpath = sourceSets.smoke.runtimeClasspath
+    mainClass = 'io.github.devweiqi.cmpresources.ResourceSmokeKt'
+    def studioHome = file(providers.gradleProperty('studioPath').orElse('/Applications/Android Studio.app').get())
+    systemProperty 'idea.home.path', studioHome.name.endsWith('.app') ? new File(studioHome, 'Contents') : studioHome
+    systemProperty 'java.awt.headless', 'true'
+    if (providers.gradleProperty('resourceProject').isPresent()) {
+        args providers.gradleProperty('resourceProject').get()
+    }
+}
+
+tasks.named('check') { dependsOn 'smokeCheck' }
+
+tasks.named('processResources') {
+    from('LICENSE') { into 'META-INF' }
+}
